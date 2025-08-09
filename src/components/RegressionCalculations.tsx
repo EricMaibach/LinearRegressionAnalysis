@@ -1,6 +1,6 @@
 import React from 'react';
 import regression from 'regression';
-import { InlineMath, BlockMath } from 'react-katex';
+import { InlineMath } from 'react-katex';
 
 interface DataPoint {
   x: number;
@@ -31,7 +31,7 @@ export const RegressionCalculations: React.FC<RegressionCalculationsProps> = ({ 
     const intercept = meanY - slope * meanX;
 
     // Calculate R²
-    const points = data.map(point => [point.x, point.y]);
+    const points: [number, number][] = data.map(point => [point.x, point.y]);
     const result = regression.linear(points);
     const r2 = result.r2;
 

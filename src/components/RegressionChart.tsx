@@ -38,7 +38,7 @@ export const RegressionChart: React.FC<RegressionChartProps> = ({ data, hoveredP
   const calculateRegression = () => {
     if (data.length < 2) return null;
     
-    const points = data.map(point => [point.x, point.y]);
+    const points: [number, number][] = data.map(point => [point.x, point.y]);
     const result = regression.linear(points);
     
     // Get min and max x values to draw regression line
