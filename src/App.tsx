@@ -3,6 +3,7 @@ import './App.css'
 import { DataInput } from './components/DataInput'
 import { RegressionChart } from './components/RegressionChart'
 import { RegressionCalculations } from './components/RegressionCalculations'
+import { GemmaChatbot } from './components/GemmaChatbot'
 import { InlineMath } from 'react-katex'
 
 interface DataPoint {
@@ -460,6 +461,8 @@ export default function App() {
           )}
         </div>
       </div>
+      
+      <GemmaChatbot dataPoints={dataPoints} />
     </div>
   );
 }

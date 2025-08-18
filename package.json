@@ -13,6 +13,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.7.2",
     "chart.js": "^4.5.0",
     "katex": "^0.16.22",
     "react": "^19.1.0",
