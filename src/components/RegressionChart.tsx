@@ -146,43 +146,64 @@ export const RegressionChart: React.FC<RegressionChartProps> = ({ data, hoveredP
       fill: false,
     } as any);
 
-    // Add Y difference line (vertical from Y mean to point)
-    datasets.push({
-      label: 'Y Difference',
-      data: [
-        { x: hoveredPoint.x, y: meanY },
-        { x: hoveredPoint.x, y: hoveredPoint.y }
-      ],
-      type: 'scatter' as const,
-      showLine: true,
-      borderColor: '#f59e0b',
-      borderWidth: 3,
-      pointRadius: 0,
-      fill: false,
-    } as any);
-
-    // Calculate predicted y value and add residual line
+    // Calculate offset amount for line separation
+    const xRange = maxX - minX;
+    const offsetAmount = xRange * 0.01; // Larger offset (1% of x-range) for better separation
+    
+    // Calculate predicted y value for residual line
     const points: [number, number][] = data.map(point => [point.x, point.y]);
     const result = regression.linear(points);
     const yPredicted = result.predict(hoveredPoint.x)[1];
     
-    // Add residual line (vertical from regression line to actual point)
-    // Offset to avoid overlap, but put to left if it's the highest x-value to prevent axis scaling
-    const xRange = maxX - minX;
-    const offsetAmount = xRange * 0.005; // Small offset (0.5% of x-range)
+    // Determine if this is at the edges to prevent axis scaling issues
     const isHighestX = hoveredPoint.x === maxX;
-    const xOffset = isHighestX ? -offsetAmount : offsetAmount; // Left for highest, right for others
+    const isLowestX = hoveredPoint.x === minX;
+    
+    // Add Y difference line (vertical from Y mean to point)
+    // Smart offset logic to prevent chart expansion
+    let yDiffOffset, residualOffset;
+    
+    if (isLowestX) {
+      // For leftmost point: both lines go to the right to avoid expanding left
+      yDiffOffset = offsetAmount * 0.5;
+      residualOffset = offsetAmount * 1.5;
+    } else if (isHighestX) {
+      // For rightmost point: both lines go to the left to avoid expanding right
+      yDiffOffset = -offsetAmount * 1.5;
+      residualOffset = -offsetAmount * 0.5;
+    } else {
+      // For middle points: spread them on both sides
+      yDiffOffset = -offsetAmount;
+      residualOffset = offsetAmount;
+    }
+    
+    datasets.push({
+      label: 'Y Difference',
+      data: [
+        { x: hoveredPoint.x + yDiffOffset, y: meanY },
+        { x: hoveredPoint.x + yDiffOffset, y: hoveredPoint.y }
+      ],
+      type: 'scatter' as const,
+      showLine: true,
+      borderColor: '#f59e0b',
+      borderWidth: 4,
+      borderDash: [6, 6] as any, // Different dash pattern from residual
+      pointRadius: 0,
+      fill: false,
+    } as any);
+    
+    // Add residual line (vertical from regression line to actual point)
     
     datasets.push({
       label: 'Residual (y - ŷ)',
       data: [
-        { x: hoveredPoint.x + xOffset, y: yPredicted },
-        { x: hoveredPoint.x + xOffset, y: hoveredPoint.y }
+        { x: hoveredPoint.x + residualOffset, y: yPredicted },
+        { x: hoveredPoint.x + residualOffset, y: hoveredPoint.y }
       ],
       type: 'scatter' as const,
       showLine: true,
       borderColor: '#dc2626',
-      borderDash: [8, 4] as any, // Dashed line pattern
+      borderDash: [8, 4] as any, // Different dash pattern from Y difference
       borderWidth: 5,
       pointRadius: 0,
       fill: false,
@@ -192,8 +213,8 @@ export const RegressionChart: React.FC<RegressionChartProps> = ({ data, hoveredP
     datasets.push({
       label: 'Residual Markers',
       data: [
-        { x: hoveredPoint.x + xOffset, y: yPredicted },
-        { x: hoveredPoint.x + xOffset, y: hoveredPoint.y }
+        { x: hoveredPoint.x + residualOffset, y: yPredicted },
+        { x: hoveredPoint.x + residualOffset, y: hoveredPoint.y }
       ],
       type: 'scatter' as const,
       showLine: false,
@@ -202,6 +223,22 @@ export const RegressionChart: React.FC<RegressionChartProps> = ({ data, hoveredP
       borderWidth: 2,
       pointRadius: 4,
       pointHoverRadius: 4,
+    } as any);
+    
+    // Add markers for Y difference line for extra visibility
+    datasets.push({
+      label: 'Y Difference Markers',
+      data: [
+        { x: hoveredPoint.x + yDiffOffset, y: meanY },
+        { x: hoveredPoint.x + yDiffOffset, y: hoveredPoint.y }
+      ],
+      type: 'scatter' as const,
+      showLine: false,
+      backgroundColor: '#f59e0b',
+      borderColor: '#ffffff',
+      borderWidth: 2,
+      pointRadius: 3,
+      pointHoverRadius: 3,
     } as any);
   }
 
@@ -240,8 +277,8 @@ export const RegressionChart: React.FC<RegressionChartProps> = ({ data, hoveredP
             size: 11
           },
           filter: function(legendItem: any) {
-            // Hide the residual markers from legend to reduce clutter
-            return legendItem.text !== 'Residual Markers';
+            // Hide the marker datasets from legend to reduce clutter
+            return legendItem.text !== 'Residual Markers' && legendItem.text !== 'Y Difference Markers';
           }
         },
         // Reserve fixed space for the legend
