@@ -44,10 +44,9 @@ export const DataInput: React.FC<DataInputProps> = ({ onDataAdd, onClear }) => {
 
   return (
     <div className="data-input">
-      <h3>Enter Data Points</h3>
       <form onSubmit={handleSubmit}>
         <div>
-          <label htmlFor="x-value">X Value: </label>
+          <label htmlFor="x-value">X:</label>
           <input
             id="x-value"
             ref={xInputRef}
@@ -59,7 +58,7 @@ export const DataInput: React.FC<DataInputProps> = ({ onDataAdd, onClear }) => {
           />
         </div>
         <div>
-          <label htmlFor="y-value">Y Value: </label>
+          <label htmlFor="y-value">Y:</label>
           <input
             id="y-value"
             type="number"
@@ -71,8 +70,8 @@ export const DataInput: React.FC<DataInputProps> = ({ onDataAdd, onClear }) => {
           />
         </div>
         <div>
-          <button type="submit">Add Point</button>
-          <button type="button" onClick={onClear}>Clear All</button>
+          <button type="submit">Add</button>
+          <button type="button" onClick={onClear}>Clear</button>
         </div>
       </form>
     </div>

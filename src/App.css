@@ -281,10 +281,9 @@ input:focus {
   box-sizing: border-box;
   background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
   border-radius: 12px;
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border: 1px solid rgba(0, 0, 0, 0.05);
-  border-left: 4px solid var(--primary-blue);
   height: fit-content;
 }
 
@@ -303,9 +302,9 @@ input:focus {
 
 .data-input form div {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  align-items: flex-start;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .data-input form div:last-child {
@@ -395,7 +394,6 @@ input:focus {
   border-radius: 12px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border: 1px solid rgba(0, 0, 0, 0.05);
-  border-top: 3px solid var(--secondary-navy);
   box-sizing: border-box;
 }
 
@@ -425,7 +423,6 @@ h1 {
   padding: 1.5rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border: 1px solid rgba(0, 0, 0, 0.05);
-  border-left: 3px solid var(--neutral-gray);
   height: fit-content;
 }
 
@@ -526,6 +523,7 @@ h4, h5, h6 {
 label {
   color: var(--text-secondary);
   font-weight: 500;
+  min-width: fit-content;
 }
 
 /* Mathematical Concept Highlighting */
