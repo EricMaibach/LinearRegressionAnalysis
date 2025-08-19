@@ -5,6 +5,7 @@ import { RegressionChart } from './components/RegressionChart'
 import { RegressionCalculations } from './components/RegressionCalculations'
 import { GemmaChatbot } from './components/GemmaChatbot'
 import { InlineMath } from 'react-katex'
+import { AIModelProvider } from './contexts/AIModelContext'
 
 interface DataPoint {
   x: number;
@@ -39,12 +40,13 @@ export default function App() {
   };
 
   return (
-    <div className="container">
-      <div className="two-panel-layout">
-        <div className="main-panel">
-          <div className="data-input-section">
-            <DataInput onDataAdd={handleDataAdd} onClear={handleClear} />
-          </div>
+    <AIModelProvider>
+      <div className="container">
+        <div className="two-panel-layout">
+          <div className="main-panel">
+            <div className="data-input-section">
+              <DataInput onDataAdd={handleDataAdd} onClear={handleClear} />
+            </div>
           
           {dataPoints.length > 0 && (
             <>
@@ -462,7 +464,8 @@ export default function App() {
         </div>
       </div>
       
-      <GemmaChatbot dataPoints={dataPoints} />
-    </div>
+        <GemmaChatbot dataPoints={dataPoints} />
+      </div>
+    </AIModelProvider>
   );
 }

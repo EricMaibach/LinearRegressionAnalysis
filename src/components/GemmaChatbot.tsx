@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { pipeline } from "@huggingface/transformers";
+import { useAIModel } from '../contexts/AIModelContext';
 
 // // Configure Transformers.js for proper CDN usage
 // env.allowRemoteModels = true;
@@ -19,6 +19,7 @@ interface GemmaChatbotProps {
 }
 
 export function GemmaChatbot({ dataPoints }: GemmaChatbotProps) {
+  const { modelStatus, generateText, loadedModelName, retryLoading } = useAIModel();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -29,12 +30,8 @@ export function GemmaChatbot({ dataPoints }: GemmaChatbotProps) {
   ]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isModelLoading, setIsModelLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [modelStatus, setModelStatus] = useState<'none' | 'loading' | 'loaded' | 'failed'>('none');
-  const [loadedModelName, setLoadedModelName] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const generatorRef = useRef<any>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -43,79 +40,6 @@ export function GemmaChatbot({ dataPoints }: GemmaChatbotProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  // Auto-load model when chatbot is opened
-  useEffect(() => {
-    if (isOpen && modelStatus === 'none') {
-      initializeModel();
-    }
-  }, [isOpen]);
-
-  const initializeModel = async () => {
-    if (generatorRef.current) return;
-    
-    setIsModelLoading(true);
-    setModelStatus('loading');
-    
-    try {
-      console.log('🤖 Loading Gemma 3 270M-Instruct model with WebGPU...');
-      
-      // Add timeout for model loading
-      const loadTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Model loading timeout after 60 seconds')), 60000);
-      });
-      
-      const loadPromise = pipeline(
-        "text-generation",
-        "onnx-community/gemma-3-270m-it-ONNX",
-        { dtype: "fp32" },
-      );
- 
-      generatorRef.current = await Promise.race([loadPromise, loadTimeout]);
-      
-      console.log('✅ Successfully loaded Gemma 3 model with WebGPU');
-      setModelStatus('loaded');
-      setLoadedModelName('Gemma 3 270M-Instruct (WebGPU)');
-      
-      // Test the model with a simple generation
-      try {
-        const testResult = await generatorRef.current('Hello', { max_new_tokens: 5 });
-        console.log('✅ Model test successful:', testResult);
-      } catch (testError) {
-        console.warn('⚠️ Model loaded but test generation failed:', testError);
-      }
-      
-    } catch (error) {
-      console.warn('❌ WebGPU failed, trying WASM fallback:', error);
-      
-      try {
-        console.log('🤖 Falling back to WASM...');
-        // Add timeout for model loading
-        const loadTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Model loading timeout after 60 seconds')), 60000);
-        });
-        const wasmLoadPromise = pipeline(
-          'text-generation',
-          'onnx-community/gemma-3-270m-it-ONNX',
-          {
-            device: 'wasm' as const,
-            // dtype: 'q4' as const
-          }
-        );
-
-        generatorRef.current = await Promise.race([wasmLoadPromise, loadTimeout]);
-        console.log('✅ Successfully loaded Gemma 3 model with WASM');
-        setModelStatus('loaded');
-        setLoadedModelName('Gemma 3 270M-Instruct (WASM)');
-        
-      } catch (wasmError) {
-        console.error('❌ Model initialization failed completely:', wasmError);
-        setModelStatus('failed');
-      }
-    }
-    
-    setIsModelLoading(false);
-  };
 
   const generateDataContext = () => {
     if (dataPoints.length === 0) return "No data points have been entered yet.";
@@ -164,15 +88,10 @@ export function GemmaChatbot({ dataPoints }: GemmaChatbotProps) {
       let aiResponse = "";
 
       // Try AI model first if available
-      if (generatorRef.current && modelStatus === 'loaded') {
+      if (modelStatus === 'loaded') {
         try {
           console.log(`🧠 Using AI model: ${loadedModelName}`);
           
-          // Create a timeout promise
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Response timeout')), 30000); // 30 second timeout
-          });
-
           // Format the prompt for Gemma 3
           const prompt = `<start_of_turn>user
 You are a helpful AI assistant specialized in linear regression and statistics. You help users understand statistical concepts, analyze their data, and explain mathematical relationships. Be concise but informative.
@@ -186,16 +105,13 @@ Provide a helpful, accurate response about linear regression, statistics, or the
 <start_of_turn>model
 `;
 
-          // Race between generation and timeout
-          const generationPromise = generatorRef.current(prompt, {
+          const result = await generateText(prompt, {
             max_new_tokens: 150,
             temperature: 0.7,
             do_sample: true,
             top_p: 0.9,
             repetition_penalty: 1.1
           });
-
-          const result = await Promise.race([generationPromise, timeoutPromise]);
           
           console.log('🤖 AI Raw result:', result);
           
@@ -237,10 +153,6 @@ Provide a helpful, accurate response about linear regression, statistics, or the
 
       // Use simple fallback if AI didn't work or model not loaded
       if (!aiResponse) {
-        if (modelStatus === 'none') {
-          // Try to load model in background for next time
-          initializeModel().catch(console.warn);
-        }
         aiResponse = getSimpleResponse(currentInput, dataContext);
         console.log('📊 Using fallback response');
       }
@@ -309,14 +221,16 @@ Provide a helpful, accurate response about linear regression, statistics, or the
 
   return (
     <>
-      {/* Floating Chat Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="ai-chat-toggle"
-        title="Open Gemma AI Assistant"
-      >
-        🤖
-      </button>
+      {/* Floating Chat Button - only show when model is ready */}
+      {modelStatus === 'loaded' && (
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="ai-chat-toggle"
+          title="Open Gemma AI Assistant"
+        >
+          🤖
+        </button>
+      )}
 
       {/* Chat Window */}
       {isOpen && (
@@ -327,20 +241,9 @@ Provide a helpful, accurate response about linear regression, statistics, or the
               {modelStatus === 'loading' && <div style={{ fontSize: '0.7rem', opacity: 0.8 }}>🔄 Loading Gemma 3...</div>}
               {modelStatus === 'loaded' && <div style={{ fontSize: '0.7rem', opacity: 0.8 }}>🤖 Gemma 3 Ready</div>}
               {modelStatus === 'failed' && <div style={{ fontSize: '0.7rem', opacity: 0.8 }}>📊 Smart Fallback Active</div>}
-              {modelStatus === 'none' && <div style={{ fontSize: '0.7rem', opacity: 0.8 }}>📊 Smart Assistant</div>}
             </div>
             <button onClick={() => setIsOpen(false)} className="close-button">×</button>
           </div>
-
-          {isModelLoading && (
-            <div className="ai-chat-loading">
-              <p>Loading Gemma 3 270M-Instruct model...</p>
-              <p style={{ fontSize: '0.8rem', color: '#666' }}>
-                This may take a moment. The model runs entirely in your browser!
-              </p>
-              <div className="loading-spinner"></div>
-            </div>
-          )}
 
           <div className="ai-chat-messages">
             {messages.map(message => (
@@ -369,16 +272,12 @@ Provide a helpful, accurate response about linear regression, statistics, or the
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="Ask about linear regression, statistics, or your data..."
-              disabled={isLoading || isModelLoading}
+              disabled={isLoading || modelStatus === 'loading'}
               rows={2}
             />
             {modelStatus === 'failed' && (
               <button 
-                onClick={() => {
-                  generatorRef.current = null;
-                  setModelStatus('none');
-                  initializeModel();
-                }}
+                onClick={retryLoading}
                 className="retry-button"
                 title="Retry loading Gemma 3 model"
               >
@@ -387,7 +286,7 @@ Provide a helpful, accurate response about linear regression, statistics, or the
             )}
             <button 
               onClick={handleSendMessage} 
-              disabled={isLoading || isModelLoading || !inputText.trim()}
+              disabled={isLoading || modelStatus === 'loading' || !inputText.trim()}
               className="send-button"
             >
               {isLoading ? '...' : '→'}
