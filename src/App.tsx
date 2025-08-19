@@ -18,6 +18,9 @@ export default function App() {
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
   const [calculationsCollapsed, setCalculationsCollapsed] = useState(false);
+  const [showSlopeCalculation, setShowSlopeCalculation] = useState(false);
+  const [showInterceptCalculation, setShowInterceptCalculation] = useState(false);
+  const [showR2Calculation, setShowR2Calculation] = useState(false);
 
   const handleDataAdd = (point: DataPoint) => {
     setDataPoints([...dataPoints, point]);
@@ -37,6 +40,36 @@ export default function App() {
 
   const handleDeletePoint = (index: number) => {
     setDataPoints(dataPoints.filter((_, i) => i !== index));
+  };
+
+  const handleCalculationToggle = (type: 'slope' | 'intercept' | 'r2') => {
+    // If clicking on the same type that's already shown, hide it
+    if ((type === 'slope' && showSlopeCalculation) ||
+        (type === 'intercept' && showInterceptCalculation) ||
+        (type === 'r2' && showR2Calculation)) {
+      // Hide the current calculation
+      setShowSlopeCalculation(false);
+      setShowInterceptCalculation(false);
+      setShowR2Calculation(false);
+    } else {
+      // Hide all calculations first, then show the selected one
+      setShowSlopeCalculation(false);
+      setShowInterceptCalculation(false);
+      setShowR2Calculation(false);
+      
+      // Show the selected calculation
+      switch (type) {
+        case 'slope':
+          setShowSlopeCalculation(true);
+          break;
+        case 'intercept':
+          setShowInterceptCalculation(true);
+          break;
+        case 'r2':
+          setShowR2Calculation(true);
+          break;
+      }
+    }
   };
 
   return (
@@ -79,8 +112,8 @@ export default function App() {
                   <tr className="column-group-headers">
                     <th colSpan={3} className="group-raw-data">Raw Data</th>
                     <th colSpan={3} className="group-deviations">Deviations</th>
-                    <th colSpan={2} className="group-regression">Regression Calculations</th>
-                    <th colSpan={2} className="group-r2">R² Components</th>
+                    {showSlopeCalculation && <th colSpan={2} className="group-regression">Regression Calculations</th>}
+                    {showR2Calculation && <th colSpan={2} className="group-r2">R² Components</th>}
                   </tr>
                   <tr>
                     <th className="col-raw-data header-with-tooltip" data-tooltip="Observed x-value (independent variable)">
@@ -101,18 +134,26 @@ export default function App() {
                     <th className="col-deviations header-with-tooltip" data-tooltip="Residual: difference between observed and predicted y-values">
                       <InlineMath math="y - \hat{y}" />
                     </th>
-                    <th className={`col-regression header-with-tooltip ${highlightType === 'sxx' ? 'highlight-sxx' : ''}`} data-tooltip="Squared deviation of x from its mean (used to calculate slope)">
-                      <InlineMath math="(x - \bar{x})^2" />
-                    </th>
-                    <th className={`col-regression header-with-tooltip ${highlightType === 'scp' ? 'highlight-scp' : ''}`} data-tooltip="Cross-product of x and y deviations from their means (used to calculate slope)">
-                      <InlineMath math="(x - \bar{x})(y - \bar{y})" />
-                    </th>
-                    <th className={`col-r2 header-with-tooltip ${highlightType === 'ssres' ? 'highlight-ssres' : ''}`} data-tooltip="Squared residual: measures unexplained variation (used in R² calculation)">
-                      <InlineMath math="(y - \hat{y})^2" />
-                    </th>
-                    <th className={`col-r2 header-with-tooltip ${highlightType === 'sstot' ? 'highlight-sstot' : ''}`} data-tooltip="Squared deviation of y from its mean: measures total variation (used in R² calculation)">
-                      <InlineMath math="(y - \bar{y})^2" />
-                    </th>
+                    {showSlopeCalculation && (
+                      <>
+                        <th className={`col-regression header-with-tooltip ${highlightType === 'sxx' ? 'highlight-sxx' : ''}`} data-tooltip="Squared deviation of x from its mean (used to calculate slope)">
+                          <InlineMath math="(x - \bar{x})^2" />
+                        </th>
+                        <th className={`col-regression header-with-tooltip ${highlightType === 'scp' ? 'highlight-scp' : ''}`} data-tooltip="Cross-product of x and y deviations from their means (used to calculate slope)">
+                          <InlineMath math="(x - \bar{x})(y - \bar{y})" />
+                        </th>
+                      </>
+                    )}
+                    {showR2Calculation && (
+                      <>
+                        <th className={`col-r2 header-with-tooltip ${highlightType === 'ssres' ? 'highlight-ssres' : ''}`} data-tooltip="Squared residual: measures unexplained variation (used in R² calculation)">
+                          <InlineMath math="(y - \hat{y})^2" />
+                        </th>
+                        <th className={`col-r2 header-with-tooltip ${highlightType === 'sstot' ? 'highlight-sstot' : ''}`} data-tooltip="Squared deviation of y from its mean: measures total variation (used in R² calculation)">
+                          <InlineMath math="(y - \bar{y})^2" />
+                        </th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -173,21 +214,51 @@ export default function App() {
                         >
                           {residual.toFixed(4)}
                         </td>
-                        <td className={`col-regression ${highlightType === 'sxx' ? 'highlight-sxx' : ''}`}>{(xDiff * xDiff).toFixed(4)}</td>
-                        <td className={`col-regression ${highlightType === 'scp' ? 'highlight-scp' : ''}`}>{(xDiff * yDiff).toFixed(4)}</td>
-                        <td className={`col-r2 ${highlightType === 'ssres' ? 'highlight-ssres' : ''}`}>
-                          {(residual * residual).toFixed(4)}
-                        </td>
-                        <td className={`col-r2 ${highlightType === 'sstot' ? 'highlight-sstot' : ''} last-col-with-delete`} style={{ position: 'relative' }}>
-                          {(yDiff * yDiff).toFixed(4)}
-                          <button 
-                            onClick={() => handleDeletePoint(index)}
-                            className="row-delete-button"
-                            title="Delete this data point"
-                          >
-                            ×
-                          </button>
-                        </td>
+                        {showSlopeCalculation && (
+                          <>
+                            <td className={`col-regression ${highlightType === 'sxx' ? 'highlight-sxx' : ''}`}>{(xDiff * xDiff).toFixed(4)}</td>
+                            <td className={`col-regression ${highlightType === 'scp' ? 'highlight-scp' : ''} ${!showR2Calculation ? 'last-col-with-delete' : ''}`} style={{ position: 'relative' }}>
+                              {(xDiff * yDiff).toFixed(4)}
+                              {!showR2Calculation && (
+                                <button 
+                                  onClick={() => handleDeletePoint(index)}
+                                  className="row-delete-button"
+                                  title="Delete this data point"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </td>
+                          </>
+                        )}
+                        {showR2Calculation && (
+                          <>
+                            <td className={`col-r2 ${highlightType === 'ssres' ? 'highlight-ssres' : ''}`}>
+                              {(residual * residual).toFixed(4)}
+                            </td>
+                            <td className={`col-r2 ${highlightType === 'sstot' ? 'highlight-sstot' : ''} last-col-with-delete`} style={{ position: 'relative' }}>
+                              {(yDiff * yDiff).toFixed(4)}
+                              <button 
+                                onClick={() => handleDeletePoint(index)}
+                                className="row-delete-button"
+                                title="Delete this data point"
+                              >
+                                ×
+                              </button>
+                            </td>
+                          </>
+                        )}
+                        {!showR2Calculation && !showSlopeCalculation && (
+                          <td className="last-col-with-delete" style={{ position: 'relative' }}>
+                            <button 
+                              onClick={() => handleDeletePoint(index)}
+                              className="row-delete-button"
+                              title="Delete this data point"
+                            >
+                              ×
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -195,55 +266,64 @@ export default function App() {
                 <tfoot>
                   <tr>
                     <td colSpan={6} className="totals-label">Sums:</td>
-                    <td className={`col-regression ${highlightType === 'sxx' ? 'highlight-sxx' : ''}`}>
-                      <InlineMath math={`SXX = ${dataPoints
-                        .reduce((sum, point) => {
-                          const meanX = dataPoints.reduce((s, p) => s + p.x, 0) / dataPoints.length;
-                          const xDiff = point.x - meanX;
-                          return sum + xDiff * xDiff;
-                        }, 0)
-                        .toFixed(4)}`} />
-                    </td>
-                    <td className={`col-regression ${highlightType === 'scp' ? 'highlight-scp' : ''}`}>
-                      <InlineMath math={`SCP = ${dataPoints
-                        .reduce((sum, point) => {
-                          const meanX = dataPoints.reduce((s, p) => s + p.x, 0) / dataPoints.length;
-                          const meanY = dataPoints.reduce((s, p) => s + p.y, 0) / dataPoints.length;
-                          const xDiff = point.x - meanX;
-                          const yDiff = point.y - meanY;
-                          return sum + xDiff * yDiff;
-                        }, 0)
-                        .toFixed(4)}`} />
-                    </td>
-                    <td className={`col-r2 ${highlightType === 'ssres' ? 'highlight-ssres' : ''}`}>
-                      <InlineMath math={`SS_{res} = ${dataPoints
-                        .reduce((sum, point) => {
-                          const meanX = dataPoints.reduce((s, p) => s + p.x, 0) / dataPoints.length;
-                          const meanY = dataPoints.reduce((s, p) => s + p.y, 0) / dataPoints.length;
-                          const n = dataPoints.length;
-                          const sumXY = dataPoints.reduce((acc, p) => acc + p.x * p.y, 0);
-                          const sumXX = dataPoints.reduce((acc, p) => acc + p.x * p.x, 0);
-                          const sumX = dataPoints.reduce((acc, p) => acc + p.x, 0);
-                          const sumY = dataPoints.reduce((acc, p) => acc + p.y, 0);
-                          const sxx = sumXX - (sumX * sumX) / n;
-                          const scp = sumXY - (sumX * sumY) / n;
-                          const slope = scp / sxx;
-                          const intercept = meanY - slope * meanX;
-                          const yPredicted = slope * point.x + intercept;
-                          const residual = point.y - yPredicted;
-                          return sum + residual * residual;
-                        }, 0)
-                        .toFixed(4)}`} />
-                    </td>
-                    <td className={`col-r2 ${highlightType === 'sstot' ? 'highlight-sstot' : ''}`}>
-                      <InlineMath math={`SS_{tot} = ${dataPoints
-                        .reduce((sum, point) => {
-                          const meanY = dataPoints.reduce((s, p) => s + p.y, 0) / dataPoints.length;
-                          const yDiff = point.y - meanY;
-                          return sum + yDiff * yDiff;
-                        }, 0)
-                        .toFixed(4)}`} />
-                    </td>
+                    {showSlopeCalculation && (
+                      <>
+                        <td className={`col-regression ${highlightType === 'sxx' ? 'highlight-sxx' : ''}`}>
+                          <InlineMath math={`SXX = ${dataPoints
+                            .reduce((sum, point) => {
+                              const meanX = dataPoints.reduce((s, p) => s + p.x, 0) / dataPoints.length;
+                              const xDiff = point.x - meanX;
+                              return sum + xDiff * xDiff;
+                            }, 0)
+                            .toFixed(4)}`} />
+                        </td>
+                        <td className={`col-regression ${highlightType === 'scp' ? 'highlight-scp' : ''}`}>
+                          <InlineMath math={`SCP = ${dataPoints
+                            .reduce((sum, point) => {
+                              const meanX = dataPoints.reduce((s, p) => s + p.x, 0) / dataPoints.length;
+                              const meanY = dataPoints.reduce((s, p) => s + p.y, 0) / dataPoints.length;
+                              const xDiff = point.x - meanX;
+                              const yDiff = point.y - meanY;
+                              return sum + xDiff * yDiff;
+                            }, 0)
+                            .toFixed(4)}`} />
+                        </td>
+                      </>
+                    )}
+                    {showR2Calculation && (
+                      <>
+                        <td className={`col-r2 ${highlightType === 'ssres' ? 'highlight-ssres' : ''}`}>
+                          <InlineMath math={`SS_{res} = ${dataPoints
+                            .reduce((sum, point) => {
+                              const meanX = dataPoints.reduce((s, p) => s + p.x, 0) / dataPoints.length;
+                              const meanY = dataPoints.reduce((s, p) => s + p.y, 0) / dataPoints.length;
+                              const n = dataPoints.length;
+                              const sumXY = dataPoints.reduce((acc, p) => acc + p.x * p.y, 0);
+                              const sumXX = dataPoints.reduce((acc, p) => acc + p.x * p.x, 0);
+                              const sumX = dataPoints.reduce((acc, p) => acc + p.x, 0);
+                              const sumY = dataPoints.reduce((acc, p) => acc + p.y, 0);
+                              const sxx = sumXX - (sumX * sumX) / n;
+                              const scp = sumXY - (sumX * sumY) / n;
+                              const slope = scp / sxx;
+                              const intercept = meanY - slope * meanX;
+                              const yPredicted = slope * point.x + intercept;
+                              const residual = point.y - yPredicted;
+                              return sum + residual * residual;
+                            }, 0)
+                            .toFixed(4)}`} />
+                        </td>
+                        <td className={`col-r2 ${highlightType === 'sstot' ? 'highlight-sstot' : ''}`}>
+                          <InlineMath math={`SS_{tot} = ${dataPoints
+                            .reduce((sum, point) => {
+                              const meanY = dataPoints.reduce((s, p) => s + p.y, 0) / dataPoints.length;
+                              const yDiff = point.y - meanY;
+                              return sum + yDiff * yDiff;
+                            }, 0)
+                            .toFixed(4)}`} />
+                        </td>
+                      </>
+                    )}
+                    {!showSlopeCalculation && !showR2Calculation && <td></td>}
                   </tr>
                 </tfoot>
               </table>
@@ -459,6 +539,10 @@ export default function App() {
               data={dataPoints} 
               onHighlight={handleHighlight}
               highlightType={highlightType}
+              showSlopeCalculation={showSlopeCalculation}
+              showInterceptCalculation={showInterceptCalculation}
+              showR2Calculation={showR2Calculation}
+              onCalculationToggle={handleCalculationToggle}
             />
           )}
         </div>
