@@ -68,6 +68,39 @@ export function GemmaChatbot({ dataPoints }: GemmaChatbotProps) {
     return `Current dataset: ${n} data points. Mean X: ${meanX.toFixed(2)}, Mean Y: ${meanY.toFixed(2)}. Linear regression: y = ${slope.toFixed(3)}x + ${intercept.toFixed(3)}. Correlation coefficient: ${correlation.toFixed(3)}.`;
   };
 
+  // Rough token counting (approximation: ~4 characters per token)
+  const estimateTokens = (text: string): number => {
+    return Math.ceil(text.length / 4);
+  };
+
+  // Create conversation history for context (rolling window)
+  const createConversationContext = (currentQuestion: string): string => {
+    const maxContextTokens = 4000; // Reserve ~4000 tokens for conversation history
+    const systemPromptTokens = 200; // Reserve for system prompt
+    const responseTokens = 150; // Reserve for response
+    const availableTokens = maxContextTokens - systemPromptTokens - responseTokens - estimateTokens(currentQuestion);
+    
+    let conversationHistory = '';
+    let totalTokens = 0;
+    
+    // Start from most recent messages and work backwards
+    for (let i = messages.length - 1; i >= 1; i--) { // Skip the initial greeting message
+      const message = messages[i];
+      const messageText = `${message.isUser ? 'Human' : 'Assistant'}: ${message.text}`;
+      const messageTokens = estimateTokens(messageText);
+      
+      if (totalTokens + messageTokens > availableTokens) {
+        break; // Stop if adding this message would exceed our token limit
+      }
+      
+      // Prepend to conversation history (since we're going backwards)
+      conversationHistory = messageText + '\n\n' + conversationHistory;
+      totalTokens += messageTokens;
+    }
+    
+    return conversationHistory.trim();
+  };
+
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
 
@@ -85,22 +118,34 @@ export function GemmaChatbot({ dataPoints }: GemmaChatbotProps) {
 
     try {
       const dataContext = generateDataContext();
+      const conversationHistory = createConversationContext(currentInput);
       let aiResponse = "";
 
       // Try AI model first if available
       if (modelStatus === 'loaded') {
         try {
           console.log(`🧠 Using AI model: ${loadedModelName}`);
+          console.log(`📝 Context tokens: ~${estimateTokens(conversationHistory)} for conversation history`);
           
-          // Format the prompt for Gemma 3
-          const prompt = `<start_of_turn>user
-You are a helpful AI assistant specialized in linear regression and statistics. You help users understand statistical concepts, analyze their data, and explain mathematical relationships. Be concise but informative.
+          // Format the prompt for Gemma 3 with conversation context
+          let prompt = `<start_of_turn>user
+You are a helpful AI assistant specialized in linear regression and statistics. You help users understand statistical concepts, analyze their data, and explain mathematical relationships. Be concise but informative, and maintain context from the conversation.
 
-Current user's data context: ${dataContext}
+Current user's data context: ${dataContext}`;
 
-User question: ${currentInput}
+          // Add conversation history if we have any
+          if (conversationHistory) {
+            prompt += `
 
-Provide a helpful, accurate response about linear regression, statistics, or the user's data. Keep responses under 150 words.
+Previous conversation:
+${conversationHistory}`;
+          }
+
+          prompt += `
+
+Current question: ${currentInput}
+
+Provide a helpful, accurate response about linear regression, statistics, or the user's data. Reference previous parts of our conversation when relevant. Keep responses under 150 words.
 <end_of_turn>
 <start_of_turn>model
 `;
@@ -153,7 +198,7 @@ Provide a helpful, accurate response about linear regression, statistics, or the
 
       // Use simple fallback if AI didn't work or model not loaded
       if (!aiResponse) {
-        aiResponse = getSimpleResponse(currentInput, dataContext);
+        aiResponse = getSimpleResponse(currentInput, dataContext, conversationHistory);
         console.log('📊 Using fallback response');
       }
 
@@ -181,23 +226,43 @@ Provide a helpful, accurate response about linear regression, statistics, or the
   };
 
   // Simple fallback responses for common questions
-  const getSimpleResponse = (question: string, dataContext: string): string => {
+  const getSimpleResponse = (question: string, dataContext: string, conversationHistory?: string): string => {
     const q = question.toLowerCase();
+    
+    // Check for context-dependent follow-up questions
+    const isFollowUp = conversationHistory && (
+      q.includes('what about') || 
+      q.includes('and') || 
+      q.includes('also') || 
+      q.includes('how about') ||
+      q.includes('explain that') ||
+      q.includes('tell me more')
+    );
     
     if (q.includes('correlation') || q.includes('r')) {
       const match = dataContext.match(/Correlation coefficient: ([-\d.]+)/);
       if (match) {
         const r = parseFloat(match[1]);
-        if (Math.abs(r) > 0.8) return `Your correlation coefficient is ${r.toFixed(3)}, which indicates a strong ${r > 0 ? 'positive' : 'negative'} linear relationship between your variables.`;
-        if (Math.abs(r) > 0.5) return `Your correlation coefficient is ${r.toFixed(3)}, which indicates a moderate ${r > 0 ? 'positive' : 'negative'} linear relationship.`;
-        return `Your correlation coefficient is ${r.toFixed(3)}, which indicates a weak linear relationship between your variables.`;
+        let response = `Your correlation coefficient is ${r.toFixed(3)}, which indicates a ${Math.abs(r) > 0.8 ? 'strong' : Math.abs(r) > 0.5 ? 'moderate' : 'weak'} ${r > 0 ? 'positive' : 'negative'} linear relationship between your variables.`;
+        
+        if (isFollowUp && conversationHistory?.includes('slope')) {
+          response += " This correlation relates to the slope we discussed - stronger correlations typically have steeper slopes.";
+        }
+        
+        return response;
       }
     }
     
     if (q.includes('slope') || q.includes('intercept')) {
       const slopeMatch = dataContext.match(/y = ([-\d.]+)x \+ ([-\d.]+)/);
       if (slopeMatch) {
-        return `Your regression line is y = ${slopeMatch[1]}x + ${slopeMatch[2]}. The slope (${slopeMatch[1]}) tells you how much Y changes for each unit increase in X.`;
+        let response = `Your regression line is y = ${slopeMatch[1]}x + ${slopeMatch[2]}. The slope (${slopeMatch[1]}) tells you how much Y changes for each unit increase in X.`;
+        
+        if (isFollowUp && conversationHistory?.includes('correlation')) {
+          response += " This slope is related to the correlation we discussed earlier.";
+        }
+        
+        return response;
       }
     }
     
@@ -206,7 +271,17 @@ Provide a helpful, accurate response about linear regression, statistics, or the
     }
     
     if (q.includes('r-squared') || q.includes('r²')) {
-      return "R-squared measures how well your regression line fits the data. Values closer to 1.0 indicate a better fit, meaning the line explains more of the variation in your data.";
+      let response = "R-squared measures how well your regression line fits the data. Values closer to 1.0 indicate a better fit, meaning the line explains more of the variation in your data.";
+      
+      if (isFollowUp && conversationHistory?.includes('correlation')) {
+        response += " R-squared is actually the square of the correlation coefficient we discussed!";
+      }
+      
+      return response;
+    }
+    
+    if (isFollowUp && conversationHistory) {
+      return "I understand you're asking a follow-up question, but I need my full AI capabilities to maintain context properly. Please try again when the AI model is loaded, or rephrase your question more specifically.";
     }
     
     return "I can help explain linear regression concepts like correlation, slope, intercept, and R-squared. Try asking about these specific topics!";
